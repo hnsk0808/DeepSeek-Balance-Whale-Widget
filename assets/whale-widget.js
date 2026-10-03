@@ -14925,12 +14925,13 @@ function pressUp() {
 
 // —— 通透模式（Transparent Mode）：循环播放 song.mp3 + 反复触发「被点击」的按压 Q 弹效果 ——
 // 音乐用原生 HTMLAudioElement 流式播放（song.mp3 较大，不适合 Web Audio 整段解码）；
-// 按压效果复用 pressDown()/pressUp()，与真实点按走完全相同的视觉 + 音效路径。
+// 按压效果只做视觉 Q 弹（直接改 body.transform），**不播放按压/松开提示音**。
 var transparentMode = false
 var songAudio = null
 var transparentPressTimer = null
 var TRANSPARENT_PRESS_MS = 240 // 每次按压的「按住」时长（≈ SQUISH 过渡 0.22s）
-var TRANSPARENT_TICK_MS = 1000 // 两次按压的间隔
+var TRANSPARENT_TICK_MS = 500 // 两次按压的间隔（速度加快一倍：原 1000ms → 500ms）
+var TRANSPARENT_SQUISH = 'scaleY(0.8) scaleX(1.12)' // 通透模式专用：幅度比普通按压（0.88/1.05）更大
 function songEnsure() {
   try {
     if (songAudio) return songAudio
@@ -14977,10 +14978,10 @@ function songStop() {
 function transparentPressTick() {
   if (!transparentMode) return
   if (drag && drag.active) return // 不打扰真实拖拽/按住
-  try { pressDown() } catch (err) {}
+  try { body.style.transform = TRANSPARENT_SQUISH } catch (err) {} // 通透模式专用：幅度更大，且不经过 pressDown()/pressUp() → 不触发提示音
   setTimeout(function () {
     if (!transparentMode) return
-    try { pressUp() } catch (err) {}
+    try { body.style.transform = 'scaleY(1) scaleX(1)' } catch (err) {}
   }, TRANSPARENT_PRESS_MS)
 }
 function transparentStart() {
@@ -14994,7 +14995,7 @@ function transparentStop() {
     try { clearInterval(transparentPressTimer) } catch (err) {}
     transparentPressTimer = null
   }
-  try { body.style.transform = 'scaleY(1) scaleX(1)'; pressing = false } catch (err) {}
+  try { body.style.transform = 'scaleY(1) scaleX(1)' } catch (err) {}
 }
 // 只同步复选框 + 启动/停止（不写配置）：供页面加载回填时调用，避免加载完成前误 PUT
 function applyTransparentMode() {

@@ -133,7 +133,7 @@ div.dshwv-root（position:fixed，承载定位与翻转）
 - 行2 音效：select `小黄鸭`(duck, Ya1/Ya2) / `音效1`(fx1, D1/D2)。
 - 行3 音量：range 0–1；音量 0 时自动关声音。
 - 行4 用量：select `小鲸鱼记账 (推荐)`(ledger) / `实时·令牌 (用法：去问dsh)`(token)。
-- 行「通透模式」：checkbox 开关。开启后循环播放 `song.mp3`（原生 `Audio` 元素 `loop=true`，固定音量 0.6，不受按压音量影响），并每 1s 触发一次 `pressDown()`→`pressUp()`（按住 240ms），复用真实点按的视觉 Q 弹 + 按压/松开音效路径；真实拖拽期间跳过自动按压。配置键 `transparentMode`（默认 false），随 size.json 持久化；加载回填用 `applyTransparentMode()` 启动/停止（不写盘），开关切换用 `setTransparentMode()`（写盘）。
+- 行「通透模式」：checkbox 开关。开启后循环播放 `song.mp3`（原生 `Audio` 元素 `loop=true`，固定音量 0.6，不受按压音量影响），并每 0.5s 触发一次视觉 Q 弹（按住 240ms，直接改 `body.style.transform` 为 `TRANSPARENT_SQUISH = 'scaleY(0.8) scaleX(1.12)'`，幅度比普通按压 `SQUISH`（0.88/1.05）更大，**不经过 `pressDown()`/`pressUp()`，因此不播放按压/松开提示音**）；真实拖拽期间跳过自动按压。配置键 `transparentMode`（默认 false），随 size.json 持久化；加载回填用 `applyTransparentMode()` 启动/停止（不写盘），开关切换用 `setTransparentMode()`（写盘）。
 - 所有设置 PUT `/dsh-whale/size.json` 持久化；打开页面时 GET 恢复。
 - 菜单 `color-scheme:light`，保证暗色主题下可读。
 
