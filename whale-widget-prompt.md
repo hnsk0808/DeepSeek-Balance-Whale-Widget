@@ -41,9 +41,10 @@
 | `/dsh-whale/balance.json` | GET | 返回余额 JSON：`{ok:true, totalBalance, currency, updatedAt, todayUsage, isPeak, usageMode}` 或 `{ok:false, code, error, transient?}`。**任何情况下都返回 200 + JSON**，绝不悬挂/空响应。 |
 | `/dsh-whale/last-turn.json` | GET | 返回最近一轮已完成的对话消耗：`{ok, seq, turn, amount, tokens, ts}`；无记录时 `turn:null`。`seq` 每次结算 +1，前端据此判断「新的一轮」。 |
 | `/dsh-whale/rua.gif` | GET | 读取插件包内 `assets/rua.gif`（回退本机旧绝对路径，内存缓存），`Content-Type: image/gif`、`Cache-Control: no-store`。 |
-| `/dsh-whale/size.json` | GET / PUT | 挂件配置持久化：GET 返回 `{scale, sound, vol, soundSet, usageMode, peakMode, bubbleOn, turnCostOn, turnCostCloseMs}`；PUT 读 body 写盘（优先 `$DSH_HOME/.dshw-size.json`，回退 `$DSH_HOME/profiles/web/` 与本机旧路径），带 CORS 头。`usageMode` 变化时清除余额缓存。 |
+| `/dsh-whale/size.json` | GET / PUT | 挂件配置持久化：GET 返回 `{scale, sound, vol, soundSet, usageMode, peakMode, bubbleOn, turnCostOn, turnCostCloseMs, scrollGapOn, scrollGapPx, menuBtnHide, codexStatsOn, transparentMode}`；PUT 读 body 写盘（优先 `$DSH_HOME/.dshw-size.json`，回退 `$DSH_HOME/profiles/web/` 与本机旧路径），带 CORS 头。`usageMode` 变化时清除余额缓存。 |
 | `/dsh-whale/sound/press.mp3` | GET | 按 `?set=duck|fx1` 返回对应按压音效（`Ya1.mp3` / `D1.mp3`），每请求读盘、`no-store`。 |
 | `/dsh-whale/sound/release.mp3` | GET | 同上，松手音效（`Ya2.mp3` / `D2.mp3`）。 |
+| `/dsh-whale/song.mp3` | GET | 返回通透模式背景音乐 `assets/song.mp3`，`Content-Type: audio/mpeg`、`no-store`。 |
 | `/dsh-whale/widget.js` | GET | 返回页面挂件源码（原生 JS），`Content-Type: application/javascript; charset=utf-8`、`Cache-Control: no-store`。 |
 | `tapIndex` | — | 对每次 index.html 注入 `<script defer src="/dsh-whale/widget.js"></script>`（置于 `</body>` 前，幂等判断 `html.indexOf('/dsh-whale/widget.js') !== -1` 则跳过）。 |
 
@@ -132,6 +133,7 @@ div.dshwv-root（position:fixed，承载定位与翻转）
 - 行2 音效：select `小黄鸭`(duck, Ya1/Ya2) / `音效1`(fx1, D1/D2)。
 - 行3 音量：range 0–1；音量 0 时自动关声音。
 - 行4 用量：select `小鲸鱼记账 (推荐)`(ledger) / `实时·令牌 (用法：去问dsh)`(token)。
+- 行「通透模式」：checkbox 开关。开启后循环播放 `song.mp3`（原生 `Audio` 元素 `loop=true`，固定音量 0.6，不受按压音量影响），并每 1s 触发一次 `pressDown()`→`pressUp()`（按住 240ms），复用真实点按的视觉 Q 弹 + 按压/松开音效路径；真实拖拽期间跳过自动按压。配置键 `transparentMode`（默认 false），随 size.json 持久化；加载回填用 `applyTransparentMode()` 启动/停止（不写盘），开关切换用 `setTransparentMode()`（写盘）。
 - 所有设置 PUT `/dsh-whale/size.json` 持久化；打开页面时 GET 恢复。
 - 菜单 `color-scheme:light`，保证暗色主题下可读。
 

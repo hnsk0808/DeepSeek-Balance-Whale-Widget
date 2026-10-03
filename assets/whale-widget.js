@@ -1745,6 +1745,17 @@ snapCustomBtn.addEventListener('click', function (e) { e.stopPropagation(); open
 rowSnap.appendChild(snapRowLabel)
 rowSnap.appendChild(snapCustomBtn)
 menuBox.appendChild(rowSnap)
+// —— 通透模式:循环播放 song.mp3 音乐 + 反复触发「被点击」的按压 Q 弹效果 ——
+var transparentToggle = document.createElement('input')
+transparentToggle.type = 'checkbox'
+transparentToggle.className = 'dshwv-check'
+transparentToggle.checked = false
+transparentToggle.title = '开启后循环播放 song.mp3，并让鲸鱼反复做出「被点击」的按压效果'
+transparentToggle.addEventListener('change', function () { setTransparentMode(transparentToggle.checked) })
+var rowTransparent = menuRow()
+rowTransparent.appendChild(menuLabel('通透模式'))
+rowTransparent.appendChild(transparentToggle)
+menuBox.appendChild(rowTransparent)
 // —— 隐藏菜单按钮:开启后右键/长按小鲸鱼可唤出菜单(位置与按钮唤出一致) ——
 var menuHideToggle = document.createElement('input')
 menuHideToggle.type = 'checkbox'
@@ -14538,7 +14549,7 @@ function configSaveFailNotice(detail) {
     '<br>已自动重试一次。若持续失败，请检查 DSH 数据目录是否可写。')
 }
 function configPayload() {
-  return JSON.stringify({ scale: state.scale, sound: soundOn, vol: soundVol, soundSet: soundSet, usageMode: usageMode, peakMode: peakMode, bubbleOn: bubbleOn, turnCostOn: turnCostOn, turnCostCloseMs: turnCostCloseMs, scrollGapOn: scrollGapOn, scrollGapPx: scrollGapPx, menuBtnHide: menuBtnHide, codexStatsOn: codexStatsOn })
+  return JSON.stringify({ scale: state.scale, sound: soundOn, vol: soundVol, soundSet: soundSet, usageMode: usageMode, peakMode: peakMode, bubbleOn: bubbleOn, turnCostOn: turnCostOn, turnCostCloseMs: turnCostCloseMs, scrollGapOn: scrollGapOn, scrollGapPx: scrollGapPx, menuBtnHide: menuBtnHide, codexStatsOn: codexStatsOn, transparentMode: transparentMode })
 }
 // 真正的 PUT：读响应 → 失败（网络异常 / HTTP!=200 / {ok:false}）静默重试一次 → 仍失败才提示
 function configPut(payload, retried) {
@@ -14910,6 +14921,91 @@ function pressUp() {
     return
   }
   // 时长未知（预热失败/解码异常）→ 交给 pressAudio.onended 兜底（见 playPress）
+}
+
+// —— 通透模式（Transparent Mode）：循环播放 song.mp3 + 反复触发「被点击」的按压 Q 弹效果 ——
+// 音乐用原生 HTMLAudioElement 流式播放（song.mp3 较大，不适合 Web Audio 整段解码）；
+// 按压效果复用 pressDown()/pressUp()，与真实点按走完全相同的视觉 + 音效路径。
+var transparentMode = false
+var songAudio = null
+var transparentPressTimer = null
+var TRANSPARENT_PRESS_MS = 240 // 每次按压的「按住」时长（≈ SQUISH 过渡 0.22s）
+var TRANSPARENT_TICK_MS = 1000 // 两次按压的间隔
+function songEnsure() {
+  try {
+    if (songAudio) return songAudio
+    var a = new Audio('/dsh-whale/song.mp3')
+    a.loop = true
+    a.preload = 'auto'
+    a.volume = 0.6
+    songAudio = a
+  } catch (err) {}
+  return songAudio
+}
+function songPlay() {
+  if (!transparentMode) return // 模式已关：不因挂起的自动播放重试而重新出声
+  var a = songEnsure()
+  if (!a) return
+  var p = null
+  try { p = a.play() } catch (err) {}
+  if (p && typeof p.catch === 'function') {
+    p.catch(function () {
+      if (!transparentMode) return
+      // 浏览器自动播放策略拦截：等下一次用户手势再试（手势内 play() 才能出声）
+      var retry = function () {
+        try {
+          document.removeEventListener('pointerdown', retry, true)
+          document.removeEventListener('keydown', retry, true)
+        } catch (err) {}
+        songPlay()
+      }
+      try {
+        document.addEventListener('pointerdown', retry, true)
+        document.addEventListener('keydown', retry, true)
+      } catch (err) {}
+    })
+  }
+}
+function songStop() {
+  try {
+    if (songAudio) {
+      songAudio.pause()
+      try { songAudio.currentTime = 0 } catch (err) {}
+    }
+  } catch (err) {}
+}
+function transparentPressTick() {
+  if (!transparentMode) return
+  if (drag && drag.active) return // 不打扰真实拖拽/按住
+  try { pressDown() } catch (err) {}
+  setTimeout(function () {
+    if (!transparentMode) return
+    try { pressUp() } catch (err) {}
+  }, TRANSPARENT_PRESS_MS)
+}
+function transparentStart() {
+  transparentStop()
+  songPlay()
+  try { transparentPressTimer = setInterval(transparentPressTick, TRANSPARENT_TICK_MS) } catch (err) {}
+}
+function transparentStop() {
+  songStop()
+  if (transparentPressTimer) {
+    try { clearInterval(transparentPressTimer) } catch (err) {}
+    transparentPressTimer = null
+  }
+  try { body.style.transform = 'scaleY(1) scaleX(1)'; pressing = false } catch (err) {}
+}
+// 只同步复选框 + 启动/停止（不写配置）：供页面加载回填时调用，避免加载完成前误 PUT
+function applyTransparentMode() {
+  if (transparentToggle) transparentToggle.checked = transparentMode
+  if (transparentMode) transparentStart()
+  else transparentStop()
+}
+function setTransparentMode(v) {
+  transparentMode = v !== false
+  applyTransparentMode()
+  saveConfig()
 }
 var menuOpen = false
 var menuClosedAt = 0 // 最近一次关闭菜单的时刻(用于避免"关掉后同一次手势又把它长按打开")
@@ -17157,6 +17253,9 @@ fetch(SIZE_URL, { cache: 'no-store' })
       codexStatsOn = d.codexStatsOn
       if (codexStatsToggle) codexStatsToggle.checked = codexStatsOn
     }
+    if (d && typeof d.transparentMode === 'boolean') {
+      transparentMode = d.transparentMode
+    }
     // 无论服务端带没带这个键都要应用一次：触屏上 ☰ 需要常显（issue #91 缺陷2），
     // 而旧写法只在键存在时才调用，空配置下按钮永远是透明的。
     applyMenuBtnHideUI()
@@ -17175,6 +17274,8 @@ fetch(SIZE_URL, { cache: 'no-store' })
     // v734（issue #97）：首次 GET 应用完成 —— 从这一刻起才允许 saveConfig() 落盘
     configLoaded = true
     if (configSavePending) { configSavePending = false; try { saveConfig() } catch (err) {} }
+    // 通透模式：按已加载配置启动/停止（音乐 + 反复按压）；此处不触发保存
+    try { applyTransparentMode() } catch (err) {}
   })
   .catch(function () {
     // 读取失败：绝不能拿内存里的默认值去 PUT（那正是「设置被洗成默认值」）
